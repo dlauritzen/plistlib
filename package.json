@@ -17,8 +17,9 @@
 		"writer"
 	],
 	"dependencies": {
-		"async": "*",
-		"node-xml": "*",
-		"xml": "*"
-	}
+		"async": "~0.2.9",
+		"node-xml": "~1.0.2",
+		"xml": "~0.0.10"
+	},
+	"license": "MIT"
 }
