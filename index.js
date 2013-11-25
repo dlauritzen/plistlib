@@ -4,6 +4,7 @@ var fs = require('fs');
 var async = require('async');
 var xml = require('xml');
 var xmlParser = require('node-xml');
+var moment = require('moment');
 
 function printNode(n) {
 	console.log(n);
@@ -44,7 +45,7 @@ function makeParser(done) {
 		});
 		
 		cb.onStartElementNS(function(elem, attrs, prefix, uri, namespaces) {
-			// console.log('Start element ' + elem);
+			// console.log('\nStart element ' + elem);
 			var tmp = {
 				name: elem,
 				// attrs: attrs,
@@ -73,10 +74,10 @@ function makeParser(done) {
 			if (parent.name == 'plist' && _.isNull(obj)) {
 				// "root" plist object
 				if (current.name == 'dict') {
-					obj = {};
+					obj = { type: 'dict', value: {} };
 				}
 				else if (current.name == 'array') {
-					obj = [];
+					obj = { type: 'array', value: [] };
 				}
 				currentObj = obj;
 				objStack = [];
@@ -84,47 +85,47 @@ function makeParser(done) {
 			else if (current.name == 'dict') {
 				objStack.push(currentObj);
 				var parentObj = currentObj;
-				currentObj = {}
+				currentObj = { type: 'dict', value: {} };
 				// console.log('Adding dict. Parent obj:');
 				// console.log(parentObj);
 				if (parent && parent.name == 'array') {
 					// console.log('Adding unnamed dict.');
-					parentObj.push(currentObj);
+					parentObj.value.push(currentObj);
 				}
 				else if (parent && parent.name == 'dict') {
 					// console.log('Adding dict ' + previous.text);
-					parentObj[previous.text] = currentObj;
+					parentObj.value[previous.text] = currentObj;
 				}
 				// console.log(parentObj);
 			}
 			else if (current.name == 'array') {
 				objStack.push(currentObj);
 				var parentObj = currentObj;
-				currentObj = [];
+				currentObj = { type: 'array', value: [] };
 				if (parent && parent.name == 'array') {
 					// console.log('Adding unnamed array');
-					parentObj.push(currentObj);
+					parentObj.value.push(currentObj);
 				}
 				else if (parent && parent.name == 'dict') {
 					// console.log('Adding array ' + previous.text);
-					parentObj[previous.text] = currentObj;
+					parentObj.value[previous.text] = currentObj;
 				}
 				// console.log(parentObj);
 			}
 			else if (current.name == 'true') {
 				if (parent && parent.name == 'array') {
-					currentObj.push(true);
+					currentObj.value.push({ type: 'bool', value: true });
 				}
 				else if (parent && parent.name == 'dict') {
-					currentObj[previous.text] = true;
+					currentObj.value[previous.text] = { type: 'bool', value: true };
 				}
 			}
 			else if (current.name == 'false') {
 				if (parent && parent.name == 'array') {
-					currentObj.push(false);
+					currentObj.value.push({ type: 'bool', value: false });
 				}
 				else if (parent && parent.name == 'dict') {
-					currentObj[previous.text] = false;
+					currentObj.value[previous.text] = { type: 'bool', value: false };
 				}
 			}
 		});
@@ -146,24 +147,44 @@ function makeParser(done) {
 				// console.log('Popped item');
 			}
 		});
+
+		function getCurrentAddValue() {
+			var toAdd = { type: current.name, value: current.text};
+			if (current.name == 'date') {
+				toAdd.value = moment(new Date(current.text));
+				toAdd.value.utc();
+			}
+			else if (current.name == 'data') {
+				var lines = current.text.split('\n');
+				// console.log(lines);
+				var text = _.map(lines, function(line) { return line.trim(); }).join('');
+				// console.log(text);
+				toAdd.value = new Buffer(text, 'base64');
+			}
+			else if (current.name == 'integer') {
+				toAdd.value = parseInt(current.text);
+			}
+			return toAdd;
+		}
 		
 		cb.onCharacters(function(chars) {
-			// console.log('Text: ' + chars);
 			if (!current) return;
 			else {
 				current.text += chars.trim();
 			}
 
-			if (current.name == 'string') {
+			// console.log('%s -> %s Text: %s', (parent ? parent.name : ''), current.name, chars.trim());
+
+			if (_.contains(['string', 'integer', 'date', 'data'], current.name)) {
 				if (parent && parent.name == 'array') {
 					// element of array
-					currentObj.push(current.text);
+					// console.log('Adding text to array.');
+					currentObj.value.push(getCurrentAddValue());
 				}
 				else if (previous && previous.name == 'key') {
 					// value of key
-					if (current.name == 'string') {
-						currentObj[previous.text] = current.text;
-					}
+					// console.log('Adding item to dict.');
+					currentObj.value[previous.text] = getCurrentAddValue();
 				}
 			}
 		});
@@ -182,35 +203,46 @@ function makeParser(done) {
 	});
 }
 
-function addItem(item, parent) {
-	if (_.isString(item) || _.isNumber(item)) {
-		parent.push({ string: item });
+function addItem(item, parent, depth) {
+	if (item.type == 'string') {
+		parent.push({ string: item.value });
 	}
-	else if (_.isArray(item)) {
+	else if (item.type == 'integer') {
+		parent.push({ integer: item.value });
+	}
+	else if (item.type == 'data') {
+		var sep = '\n' + Array(depth+1).join('\t');
+		var str = sep + item.value.toString('base64').match(/.{1,60}/g).join(sep) + sep;
+		parent.push({ data: str });
+	}
+	else if (item.type == 'bool') {
+		if (item.value) {
+			parent.push({ true: '' });
+		}
+		else {
+			parent.push({ false: '' });
+		}
+	}
+	else if (item.type == 'array') {
 		var arr = [];
-		_.each(item, function(e) {
-			addItem(e, arr);
+		_.each(item.value, function(e) {
+			addItem(e, arr, depth+1);
 		});
 		parent.push({ array: arr });
 	}
-	else if (_.isObject(item)) {
+	else if (item.type == 'dict') {
 		var dict = [];
-		_.each(item, function(value, key) {
+		_.each(item.value, function(value, key) {
 			dict.push({ key: key });
-			addItem(value, dict);
+			addItem(value, dict, depth+1);
 		});
-		parent.push({ dict: dict});
+		parent.push({ dict: dict });
 	}
-	else if (_.isBoolean(item)) {
-		if (item) {
-			parent.push({ true: ''});
-		}
-		else {
-			parent.push({ false: ''});
-		}
+	else if (item.type == 'date') {
+		parent.push({ date: item.value.format('YYYY-MM-DDTHH:mm:ss[Z]') });
 	}
 	else {
-		console.log('Unexpected item: ' + item);
+		console.log('Unexpected item: ' + util.inspect(item));
 	}
 }
 
@@ -228,10 +260,10 @@ exports.load = function(filename, done) {
 
 exports.toString = function(data) {
 	var xmlObj = { dict: [] };
-	_.each(data, function(value, key) {
+	_.each(data.value, function(value, key) {
 		if (value) {
 			xmlObj.dict.push({ key: key });
-			addItem(value, xmlObj.dict);
+			addItem(value, xmlObj.dict, 1);
 		}
 	});
 	var xmlStr = xml(xmlObj, { indent: "\t" }).replace(/<true><\/true>/g, "<true/>").replace(/<false><\/false>/g,"<false/>");
