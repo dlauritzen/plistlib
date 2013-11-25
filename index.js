@@ -18,8 +18,8 @@ exports.debug = function(doc) {
 	_.each(doc.children, printNode);
 }
 
-exports.load = function(filename, done) {
-	var parser = new xmlParser.SaxParser(function(cb) {
+function makeParser(done) {
+	return new xmlParser.SaxParser(function(cb) {
 
 		// plist model
 		var obj = null;
@@ -180,8 +180,6 @@ exports.load = function(filename, done) {
 		cb.onError(function(msg) {
 		});
 	});
-
-	parser.parseFile(filename);
 }
 
 function addItem(item, parent) {
@@ -216,7 +214,19 @@ function addItem(item, parent) {
 	}
 }
 
-exports.save = function(filename, data, done) {
+exports.loadBuffer = function(buffer, done) {
+	makeParser(done).parseString(buffer.toString());
+}
+
+exports.loadString = function(string, done) {
+	makeParser(done).parseString(string);
+}
+
+exports.load = function(filename, done) {
+	makeParser(done).parseFile(filename);
+}
+
+exports.toString = function(data) {
 	var xmlObj = { dict: [] };
 	_.each(data, function(value, key) {
 		if (value) {
@@ -225,11 +235,17 @@ exports.save = function(filename, data, done) {
 		}
 	});
 	var xmlStr = xml(xmlObj, { indent: "\t" }).replace(/<true><\/true>/g, "<true/>").replace(/<false><\/false>/g,"<false/>");
+	var content = '<?xml version="1.0" encoding="UTF-8"?>\n';
+	content += '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n';
+	content += '<plist version="1.0">\n';
+	content += xmlStr;
+	content += '\n</plist>\n';
+	return content;
+}
+
+exports.save = function(filename, data, done) {
 	var out = fs.createWriteStream(filename);
-	out.write('<?xml version="1.0" encoding="UTF-8"?>\n', 'utf8');
-	out.write('<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n', 'utf8');
-	out.write('<plist version="1.0">\n', 'utf8');
-	out.write(xmlStr, 'utf8');
-	out.write('\n</plist>\n', 'utf8');
+	var content = exports.toString(data);
+	out.write(content, 'utf8');
 	out.end(done);
 }

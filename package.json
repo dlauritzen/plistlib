@@ -2,7 +2,7 @@
 	"name": "plistlib",
 	"author": "Dallin Lauritzen <dallin@dallinlauritzen.com>",
 	"description": "Plist parser and writer.",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/dlauritzen/plistlib.git"
