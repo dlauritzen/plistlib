@@ -1,0 +1,24 @@
+{
+	"name": "plistlib",
+	"author": "Dallin Lauritzen <dallin@dallinlauritzen.com>",
+	"description": "Plist parser and writer.",
+	"version": "0.1.0",
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/dlauritzen/plistlib.git"
+	},
+	"keywords": [
+		"apple",
+		"plist",
+		"ios",
+		"mac",
+		"xml",
+		"parser",
+		"writer"
+	],
+	"dependencies": {
+		"async": "*",
+		"node-xml": "*",
+		"xml": "*"
+	}
+}
