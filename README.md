@@ -79,6 +79,46 @@ becomes
 }
 ```
 
+### Nesting
+
+Types can nest, so here's a fancier example.
+
+``` xml
+<dict>
+	<key>Array Of Dicts</key>
+	<array>
+		<dict>
+			<key>A</key>
+			<string>B</string>
+			<key>C</key>
+			<integer>4</integer>
+		</dict>
+	</array>
+</dict>
+```
+
+becomes
+
+``` javascript
+{
+	type: 'dict',
+	value: {
+		"Array Of Dicts": {
+			type: 'array',
+			value: [
+				{
+					type: 'dict',
+					value: {
+						A: { type: 'string', value: 'B' },
+						C: { type: 'integer', value: 4 }
+					}
+				}
+			]
+		}
+	}
+}
+```
+
 ## API
 
 ``` javascript
