@@ -281,3 +281,26 @@ exports.save = function(filename, data, done) {
 	out.write(content, 'utf8');
 	out.end(done);
 }
+
+function compactItem(item) {
+	if (item.type == 'dict') {
+		var obj = {};
+		_.each(item.value, function(value, key) {
+			obj[key] = compactItem(value);
+		});
+		return obj;
+	}
+	else if (item.type == 'array') {
+		return _.map(item.value, compactItem);
+	}
+	else if (_.contains(['string', 'date', 'data', 'integer', 'bool'], item.type)) {
+		return item.value;
+	}
+	else {
+		return null;
+	}
+}
+
+exports.compact = function(plist) {
+	return compactItem(plist);
+}
