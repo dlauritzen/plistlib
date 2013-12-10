@@ -5,6 +5,7 @@ var async = require('async');
 var xml = require('xml');
 var xmlParser = require('node-xml');
 var moment = require('moment');
+var util = require('util');
 
 function printNode(n) {
 	console.log(n);
